@@ -26,7 +26,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100dvh}
 aside{position:sticky;top:0;height:100dvh;background:var(--sf);border-right:1px solid var(--ln);padding:22px 14px;display:flex;flex-direction:column;gap:6px}
 .logo{display:flex;align-items:center;gap:10px;margin:0 6px 22px;font:600 20px var(--disp);letter-spacing:.3px}
-.plate{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;background:var(--stk);color:var(--onstk);font:600 19px var(--disp)}
+.plate{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;background:var(--stk);color:var(--onstk);font:600 19px var(--disp);-webkit-user-select:none;user-select:none}
 .nv{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:var(--mut);font-weight:500;text-align:left}
 .nv:hover{background:var(--sf2);color:var(--ink)}.nv.on{background:var(--brand);color:var(--onb)}
 .nv.inst{background:var(--stk);color:var(--onstk);margin-top:auto;font-weight:600}
@@ -81,7 +81,7 @@ label{display:block;font-size:13px;color:var(--mut);margin:16px 0 6px}
 .btns{display:flex;gap:8px;margin-top:22px}.btns .btn:last-child{margin-left:auto}
 .hint:not(:empty){margin-top:14px;padding:9px 12px;background:var(--sf2);border:1px solid var(--ln);border-radius:10px;font-size:13px}
 .err{color:var(--loss);font-size:13px;margin-top:10px}
-.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:20;background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:12px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.3);max-width:calc(100vw - 32px);text-align:center}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:20;background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:12px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.3);max-width:calc(100vw - 32px);text-align:center;line-height:1.4}
 .toast.hide{display:none}
 @media (min-width:821px){.toast{bottom:24px}}
 @media (max-width:820px){
@@ -109,22 +109,24 @@ label{display:block;font-size:13px;color:var(--mut);margin:16px 0 6px}
 <datalist id="dn"></datalist><datalist id="dc"></datalist>
 <div class="toast hide" id="toast"></div>
 <script>
+/* ========= ЗНІМОК ОРИГІНАЛУ HTML (робимо ДО будь-яких змін DOM) ========= */
+const ORIGINAL_HTML = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+
 /* ========= PWA: манифест, иконка, установка ========= */
 const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="104" fill="#ffd23f"/><text x="50%" y="50%" dy=".35em" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="330" font-weight="700" fill="#16181d">П</text></svg>`;
 const ICON_URL = "data:image/svg+xml," + encodeURIComponent(ICON_SVG);
 
+const IS_FILE = location.protocol === "file:";
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const IS_STANDALONE = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+const IS_DESKTOP = !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
 (function initPWA(){
   const manifest = {
-    name: "Перекуп",
-    short_name: "Перекуп",
+    name: "Перекуп", short_name: "Перекуп",
     description: "Облік товарів, продажів і цін на ринку",
-    start_url: ".",
-    scope: ".",
-    display: "standalone",
-    orientation: "portrait",
-    background_color: "#eceef2",
-    theme_color: "#14181f",
-    lang: "uk",
+    start_url: ".", scope: ".", display: "standalone",
+    background_color: "#eceef2", theme_color: "#14181f", lang: "uk",
     icons: [
       { src: ICON_URL, sizes: "192x192", type: "image/svg+xml", purpose: "any" },
       { src: ICON_URL, sizes: "512x512", type: "image/svg+xml", purpose: "any" },
@@ -132,35 +134,25 @@ const ICON_URL = "data:image/svg+xml," + encodeURIComponent(ICON_SVG);
     ]
   };
   const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
-  const url = URL.createObjectURL(blob);
   const link = document.createElement("link");
-  link.rel = "manifest";
-  link.href = url;
+  link.rel = "manifest"; link.href = URL.createObjectURL(blob);
   document.head.appendChild(link);
 
-  // Apple touch icon
   const apple = document.createElement("link");
-  apple.rel = "apple-touch-icon";
-  apple.href = ICON_URL;
+  apple.rel = "apple-touch-icon"; apple.href = ICON_URL;
   document.head.appendChild(apple);
   const fav = document.createElement("link");
-  fav.rel = "icon";
-  fav.type = "image/svg+xml";
-  fav.href = ICON_URL;
+  fav.rel = "icon"; fav.type = "image/svg+xml"; fav.href = ICON_URL;
   document.head.appendChild(fav);
 
-  // Service worker (м'inimal, кэш не обов'язковий для install у Chrome, але підвищує надійність)
-  if ("serviceWorker" in navigator) {
+  if (!IS_FILE && "serviceWorker" in navigator) {
     const swCode = `self.addEventListener("install",e=>self.skipWaiting());self.addEventListener("activate",e=>self.clients.claim());self.addEventListener("fetch",e=>{});`;
-    const swBlob = new Blob([swCode], { type: "text/javascript" });
-    const swUrl = URL.createObjectURL(swBlob);
+    const swUrl = URL.createObjectURL(new Blob([swCode], { type: "text/javascript" }));
     navigator.serviceWorker.register(swUrl).catch(()=>{});
   }
 })();
 
 let deferredPrompt = null;
-let isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
 window.addEventListener("beforeinstallprompt", e => {
   e.preventDefault();
@@ -169,32 +161,94 @@ window.addEventListener("beforeinstallprompt", e => {
 });
 window.addEventListener("appinstalled", () => {
   deferredPrompt = null;
-  isStandalone = true;
   toast("Встановлено! Відкрий «Перекуп» з домашнього екрана 🎉");
   refreshInstallUI();
 });
 
-function showToast(msg){ const t=$("toast"); if(!t) return; t.textContent = msg; t.classList.remove("hide"); clearTimeout(showToast._t); showToast._t = setTimeout(()=>t.classList.add("hide"), 4200); }
+function showToast(msg){
+  const t = document.getElementById("toast"); if(!t) return;
+  t.innerHTML = msg; t.classList.remove("hide");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.add("hide"), 6500);
+}
 const toast = showToast;
 
 async function installApp(){
   if (deferredPrompt) {
     deferredPrompt.prompt();
-    const choice = await deferredPrompt.userChoice;
+    await deferredPrompt.userChoice;
     deferredPrompt = null;
     refreshInstallUI();
     return;
   }
-  if (isIOS && !isStandalone) {
-    showToast("Safari: «Поділитися» → «На екран “Домів”»");
+  if (IS_FILE) {
+    if (IS_DESKTOP) {
+      toast(
+        "<b>Файл відкрито локально (file://).</b><br>" +
+        "Браузер не дозволяє авто-встановлення. Варіанти:<br>" +
+        "• Chrome/Edge: <b>⋮ меню → Зберегти та поділитися → Встановити як застосунок</b> (або «Створити ярлик» із галочкою «Відкривати як вікно»).<br>" +
+        "• Або завантаж файл на будь-який безкоштовний хостинг (Netlify Drop, GitHub Pages) — і кнопка з'явиться сама."
+      );
+    } else {
+      toast(
+        "<b>Файл відкрито локально.</b><br>" +
+        (IS_IOS
+          ? "Safari: <b>Поділитися → На екран «Домів»</b>."
+          : "Chrome: <b>⋮ меню → Встановити застосунок</b>.<br>Або завантаж на хостинг для повноцінного PWA.")
+      );
+    }
     return;
   }
-  showToast("Відкрий у Chrome/Edge або встанови через меню браузера «Встановити застосунок»");
+  if (IS_IOS) {
+    toast("<b>Safari:</b> кнопка «Поділитися» (□↑) → <b>«На екран “Домів”»</b>");
+    return;
+  }
+  if (IS_DESKTOP) {
+    toast("Відкрий меню браузера <b>⋮</b> → <b>«Встановити застосунок»</b> або <b>«Зберегти та поділитися → Встановити як застосунок»</b>.");
+  } else {
+    toast("Відкрий меню браузера → <b>«Встановити застосунок»</b> / <b>«Додати на головний екран»</b>.");
+  }
 }
+
 function refreshInstallUI(){
-  // просто перерендеримо нав, якщо він є
   if (typeof render === "function" && document.getElementById("nav")) render();
 }
+
+/* ========= ПРИХОВАНЕ ЗАВАНТАЖЕННЯ КОДУ ========= */
+function downloadCode(){
+  try {
+    const blob = new Blob([ORIGINAL_HTML], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "perekup.html";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+    toast("Код скачано ✓ — <b>perekup.html</b>");
+  } catch(e) {
+    toast("Не вдалось скачати 😕");
+  }
+}
+
+// Тригер 1: Ctrl/Cmd + Shift + Alt + S
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.altKey && (e.code === "KeyS" || e.key.toLowerCase() === "s")) {
+    e.preventDefault();
+    downloadCode();
+  }
+});
+
+// Тригер 2: 5 швидких кліків по логотипу «П» (клас .plate)
+let _plateClicks = 0, _plateTimer = null;
+document.addEventListener("click", e => {
+  if (!e.target.closest(".plate")) return;
+  _plateClicks++;
+  clearTimeout(_plateTimer);
+  if (_plateClicks >= 5) { _plateClicks = 0; downloadCode(); return; }
+  _plateTimer = setTimeout(()=>{ _plateClicks = 0; }, 1300);
+}, true);
 
 /* ========== Основний застосунок ========== */
 const K1="reseller-items-v1",K2="reseller-clients-v1",K3="reseller-quotes-v1",K4="reseller-tags-v1";
@@ -234,9 +288,7 @@ function qm(model,tags,stock,exact){const m=nsp(model);return quotes.filter(x=>(
 const TITLE={items:["Товари","Додати товар"],market:["Ринок","Додати ціну"],clients:["Клієнти","Додати клієнта"]};
 
 function renderInstallButton(){
-  // показуємо кнопку, якщо: ще не встановлено, і (є beforeinstallprompt АБО iOS Safari)
-  if (isStandalone) return "";
-  if (!deferredPrompt && !isIOS) return "";
+  if (IS_STANDALONE) return "";
   return `<button class="nv inst" data-install>${ico("download")}<span>Встановити</span></button>`;
 }
 
@@ -283,7 +335,6 @@ function mres(){
  el.innerHTML=`<div class="sum"><div><span class="price lg">${fm(avg(P))}</span><div class="meta" style="margin-top:6px">Середня ціна · ${what}</div></div>
  <div class="kv"><b>${fm(P[0])} – ${fm(P[P.length-1])}</b><span>мін – макс</span></div><div class="kv"><b>${R.length}</b><span>цін вписано</span></div></div>${g}<h3 class="sh">Усі ціни</h3><div class="list">${R.map(qRow).join("")}</div>`}
 
-// діалоги
 function tp(){return `<div id="tp">${allTags().map(t=>`<button type="button" class="chip ${sel.includes(t)?"on":""}" data-tg="${esc(t)}">${esc(t)}${custom.includes(t)?` <span data-deltag="${esc(t)}">✕</span>`:""}</button>`).join("")}</div>
  <div class="add"><input id="ntg" placeholder="Свій тег, напр. Карбон"><button type="button" class="btn sec" data-newtag>Додати</button></div>`}
 function open(html,ok,del){dlg.innerHTML=`<form id="df" autocomplete="off">${html}<div class="err" id="err"></div><div class="btns">${del?`<button type="button" class="btn del" data-ddel>Видалити</button>`:""}<button type="button" class="btn sec" data-close>Скасувати</button><button type="submit" class="btn">Зберегти</button></div></form>`;onOk=ok;onDel=del;dlg.showModal()}
